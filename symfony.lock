@@ -38,6 +38,15 @@
             "./config/packages/lexik_jwt_authentication.yaml"
         ]
     },
+    "symfony/brevo-mailer": {
+        "version": "7.0",
+        "recipe": {
+            "repo": "github.com/symfony/recipes",
+            "branch": "main",
+            "version": "6.4",
+            "ref": "7c1038ceb733175f610a913a885a7c8b552b703a"
+        }
+    },
     "symfony/console": {
         "version": "7.0",
         "recipe": {
@@ -81,6 +90,18 @@
             "./src/Kernel.php"
         ]
     },
+    "symfony/mailer": {
+        "version": "7.0",
+        "recipe": {
+            "repo": "github.com/symfony/recipes",
+            "branch": "main",
+            "version": "4.3",
+            "ref": "df66ee1f226c46f01e85c29c2f7acce0596ba35a"
+        },
+        "files": [
+            "./config/packages/mailer.yaml"
+        ]
+    },
     "symfony/maker-bundle": {
         "version": "1.52",
         "recipe": {
@@ -116,6 +137,19 @@
             "./config/routes/security.yaml"
         ]
     },
+    "symfony/twig-bundle": {
+        "version": "7.0",
+        "recipe": {
+            "repo": "github.com/symfony/recipes",
+            "branch": "main",
+            "version": "6.3",
+            "ref": "b7772eb20e92f3fb4d4fe756e7505b4ba2ca1a2c"
+        },
+        "files": [
+            "./config/packages/twig.yaml",
+            "./templates/base.html.twig"
+        ]
+    },
     "symfony/validator": {
         "version": "7.0",
         "recipe": {
@@ -126,6 +160,18 @@
         },
         "files": [
             "./config/packages/validator.yaml"
+        ]
+    },
+    "vich/uploader-bundle": {
+        "version": "2.3",
+        "recipe": {
+            "repo": "github.com/symfony/recipes-contrib",
+            "branch": "main",
+            "version": "1.13",
+            "ref": "1b3064c2f6b255c2bc2f56461aaeb76b11e07e36"
+        },
+        "files": [
+            "./config/packages/vich_uploader.yaml"
         ]
     }
 }
