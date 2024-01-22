@@ -3,6 +3,8 @@
 namespace App\Entity;
 
 use App\Repository\UserRepository;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
@@ -53,7 +55,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         max: 255,
         maxMessage: 'The firstname cannot be longer than {{ limit }} characters.'
     )]
-    #[Groups(["user:read"])]
+    #[Groups(["user:read", "article:show"])]
     private ?string $firstname = null;
 
     #[ORM\Column(length: 255)]
@@ -65,10 +67,25 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[Groups(["user:read"])]
     private ?string $lastname = null;
 
+    #[ORM\OneToMany(mappedBy: 'user', targetEntity: Article::class, orphanRemoval: true)]
+    #[Groups(["user:read"])]
+    private Collection $articles;
+
+    public const STATUS_INACTIVE = 'inactive';
+    public const STATUS_BANNED = 'banned';
+    public const STATUS_ACTIVE = 'active';
+    #[ORM\Column(length: 20)]
+    private ?string $status = null;
+
+    #[ORM\OneToMany(mappedBy: 'user', targetEntity: Product::class, orphanRemoval: true)]
+    #[Groups(["user:read"])]
+    private Collection $products;
+
     public function __construct()
     {
-
         $this->roles = ['ROLE_USER'];
+        $this->articles = new ArrayCollection();
+        $this->products = new ArrayCollection();
     }
 
     public function getId(): ?int
@@ -161,6 +178,82 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function setLastname(string $lastname): static
     {
         $this->lastname = $lastname;
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, Article>
+     */
+    public function getArticles(): Collection
+    {
+        return $this->articles;
+    }
+
+    public function addArticle(Article $article): static
+    {
+        if (!$this->articles->contains($article)) {
+            $this->articles->add($article);
+            $article->setUser($this);
+        }
+
+        return $this;
+    }
+
+    public function removeArticle(Article $article): static
+    {
+        if ($this->articles->removeElement($article)) {
+            // set the owning side to null (unless already changed)
+            if ($article->getUser() === $this) {
+                $article->setUser(null);
+            }
+        }
+
+        return $this;
+    }
+
+    public function getStatus(): ?string
+    {
+        return $this->status;
+    }
+
+    public function setStatus(string $status): static
+    {
+        if (!in_array($status, [self::STATUS_INACTIVE, self::STATUS_BANNED, self::STATUS_ACTIVE])) {
+            throw new \InvalidArgumentException("Invalid status value: $status");
+        }
+
+        $this->status = $status;
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, Product>
+     */
+    public function getProducts(): Collection
+    {
+        return $this->products;
+    }
+
+    public function addProduct(Product $product): static
+    {
+        if (!$this->products->contains($product)) {
+            $this->products->add($product);
+            $product->setUser($this);
+        }
+
+        return $this;
+    }
+
+    public function removeProduct(Product $product): static
+    {
+        if ($this->products->removeElement($product)) {
+            // set the owning side to null (unless already changed)
+            if ($product->getUser() === $this) {
+                $product->setUser(null);
+            }
+        }
 
         return $this;
     }

@@ -2,13 +2,17 @@
 
 namespace App\Controller;
 
+use App\Entity\Token;
 use App\Entity\User;
+use App\Repository\TokenRepository;
 use App\Repository\UserRepository;
 use Doctrine\ORM\EntityManagerInterface;
-use Lexik\Bundle\JWTAuthenticationBundle\Services\JWTTokenManagerInterface;
+use Symfony\Bridge\Twig\Mime\TemplatedEmail;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\Mailer\MailerInterface;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
@@ -23,8 +27,9 @@ class UserController extends AbstractController
 
     #[Route("/users", name: "users", methods: ["GET"])]
     #[IsGranted("ROLE_ADMIN")]
-    public function index(UserRepository $userRepository, SerializerInterface $serializer)
+    public function index(UserRepository $userRepository, MailerInterface $mailer)
     {
+
         $usersList = $userRepository->findAll();
 
         return new JsonResponse([
@@ -33,7 +38,7 @@ class UserController extends AbstractController
     }
 
     #[Route('/signin', name: 'signin', methods: ["POST"])]
-    public function store(Request $request, SerializerInterface $serializer, JWTTokenManagerInterface $JWTManager, ValidatorInterface $validator, UserPasswordHasherInterface $passwordHasher, EntityManagerInterface $em): JsonResponse
+    public function store(Request $request, SerializerInterface $serializer, ValidatorInterface $validator, UserPasswordHasherInterface $passwordHasher, EntityManagerInterface $em, MailerInterface $mailer): JsonResponse
     {
 
         $newUser = $serializer->deserialize(
@@ -73,17 +78,39 @@ class UserController extends AbstractController
                     $newUser,
                     $newUser->getPassword()
                 )
-            );
+            )
+            ->setStatus(User::STATUS_INACTIVE);
 
+        $token = uniqid("tk_", false);
+        $hash = sha1($token);
+        $createToken = (new Token())
+            ->setToken($hash)
+            ->setExp(new \DateTimeImmutable('+10 minutes'))
+            ->setUser($newUser);
+
+
+        $em->persist($createToken);
         $em->persist($newUser);
         $em->flush();
 
-        $token = $JWTManager->create($newUser);
+        $email = (new TemplatedEmail())
+            ->from('lapetiteboutiquedephee@gmail.com')
+            ->to($newUser->getEmail())
+            ->subject('Vérification de l\'adresse mail')
+            ->html("<p>Hello {$newUser->getFirstname()},</p>"
+                . "<p>Merci de votre inscription sur La Petite Boutique D'Ephée !</p>"
+                . "<p>S'il vous plait, cliquez sur le lien pour vérifier votre adresse mail:</p>"
+                . "<p><a href='http://127.0.0.1:8000/api/auth/confirm-email/" . $newUser->getFirstname() . "_" . $token . "'>"
+                . "Activer mon compte</a>"
+                . "</p>"
+                . "<p>A plus tard sur la Petite Boutique D'Ephée !</p>");
+
+        $mailer->send($email);
 
         return new JsonResponse([
-            'token' => $token,
-            "success" => true
-        ], JsonResponse::HTTP_OK, []);
+            "success" => true,
+            'message' => 'Your account has been created. Please check your emails to activate it.'
+        ], JsonResponse::HTTP_CREATED);
     }
 
 
@@ -188,5 +215,53 @@ class UserController extends AbstractController
         $em->flush();
 
         return new JsonResponse(null, JsonResponse::HTTP_NO_CONTENT);
+    }
+    #[Route(
+        '/confirm-email/{firstname}_{token}',
+        name: 'confirm-email',
+        requirements: ["firstname" => "[a-zA-Z0-9_\-]+", "token" => "(tk_){1}[a-z0-9]+"],
+        methods: ['GET']
+    )]
+    public function confirmEmail(
+        string $firstname,
+        string $token,
+        EntityManagerInterface $em,
+        MailerInterface $mailer,
+        TokenRepository $tokenRepository,
+        UserRepository $userRepository
+    ) {
+        $user = $userRepository->findOneBy(["firstname" => $firstname]);
+        $tokenId = $tokenRepository->findOneBy(["token" => sha1($token)]);
+
+        if (!$user || !$tokenId) {
+            return $this->json([
+                'success' => false
+            ], Response::HTTP_NOT_FOUND);
+        }
+
+        $user->setStatus(User::STATUS_ACTIVE);
+        //recuperer status
+        $em->remove($tokenId);
+        $em->persist($user);
+        $em->flush();
+
+        $email = (new TemplatedEmail())
+            ->from('lapetiteboutiquedephee@gmail.com')
+            ->to($user->getEmail())
+            ->subject('Your account has been activated !')
+            ->html(
+                "<p>Hello {$user->getFirstname()},</p>"
+                    . "<p>
+                      Votre compte est bien activé !
+                    </p>"
+                    . "<p>A plus tard sur La Petite Boutique D'Ephée !</p>"
+            );
+
+        $mailer->send($email);
+
+        return $this->json([
+            'success' => true,
+            'message' => 'Your account has been activated !'
+        ], Response::HTTP_OK);
     }
 }
